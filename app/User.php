@@ -17,7 +17,7 @@ class User extends Authenticatable
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password',
+        'firstname', "lastname", 'email', 'password', "state", "country", "address", "phone", 'isVerified', '2fa'
     ];
 
     /**
@@ -29,6 +29,10 @@ class User extends Authenticatable
         'password', 'remember_token',
     ];
 
+    protected $logAttributes  = [
+        'firstname', 'lastname', "email", 'phone'
+    ];
+
     /**
      * The attributes that should be cast to native types.
      *
@@ -37,4 +41,9 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public function verifyUser()
+    {
+        return $this->hasOne('App\VerifyUser');
+    }
 }
