@@ -23,7 +23,6 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\VerifyUsers;
 use App\TwoFACodes;
-use PhpParser\Node\Stmt\TryCatch;
 
 class AuthController extends Controller
 {
