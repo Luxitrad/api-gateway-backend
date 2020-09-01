@@ -3,27 +3,33 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use \Illuminate\Database\QueryException;
-use App\VerifyUsers;
-use Illuminate\Support\Str;
-use App\Mail\EmailVerification;
+use App\VerifyUser;
 use App\User;
+use App\Traits\CustomResponse;
+use App\Http\Controllers\Controller;
+use App\Mail\EmailVerification;
+use App\Mail\VerifyTwoFa;
+use Laravel\Passport\HasApiTokens;
+
+use Exception;
+use Illuminate\Http\Response;
+use \Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use App\VerifyUsers;
+use App\TwoFACodes;
+use PhpParser\Node\Stmt\TryCatch;
 
 class AuthController extends Controller
 {
-    /**
-     * Create user
-     *
-     * @param  [string] name
-     * @param  [string] email
-     * @param  [string] password
-     * @param  [string] password_confirmation
-     * @return [string] message
-     */
+
+    use CustomResponse, HasApiTokens;
+
     public function register(Request $request)
     {
         $userDetails = '';
@@ -32,92 +38,121 @@ class AuthController extends Controller
         } else {
             $userDetails = $request->all();
         }
-
         $validator = Validator::make($userDetails, [
-            'name' => 'required',
+            'firstname' => 'required',
+            'lastname' => 'required',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:6',
             'c_password' => 'required|same:password',
+            "country" => 'required',
+            "state" => 'required',
+            "phone" => 'nullable',
+            "address" => 'nullable'
         ]);
 
         if ($validator->fails()) {
             $errors = $validator->errors()->all();
             $error["message"] = $errors[0];
             $error["code"] = 'VALIDATION_ERROR';
-            return response()->json(["error" => $error], 400);
+            return $this->errorMessage(["error" => $error], 400);
         }
-        $userDetails['password'] = bcrypt($userDetails['password']);
-
+        $userDetails['password'] = Hash::make($userDetails['password']);
         try {
             $user = User::create($userDetails);
             $verifyUser = VerifyUsers::create([
                 'user_id' => $user->id,
                 'token' => Str::random(40)
             ]);
-            Mail::to($user->email)->send(new EmailVerification($user)); // Send Email for account verification
-            $success['message'] = "We have sent a confirmation mail to your email. Please check your inbox.";
-            return response()->json(['success' => $success], 200);
+            // dd($user);
+            // if (Mail::to($user->email)->send(new EmailVerification($user))) {
+            //     $success['message'] = "We have sent a confirmation mail to your email. Please check your inbox.";
+            //     return $this->validResponse(['success' => $success], Response::HTTP_CREATED);
+            // } else {
+            //     $error["message"] = "Cant Send Email";
+            //     $error["code"] = 'Email Error';
+            //     return $this->errorMessage(["error" => $error], 400);
+            // }
         } catch (QueryException $exception) {
-            return response()->json($exception, 400);
+            return $this->errorMessage($exception, 400);
         }
+
+        try {
+            if (Mail::to($user->email)->send(new EmailVerification($user))) {
+                $success['message'] = "We have sent a confirmation mail to your email. Please check your inbox.";
+                return $this->validResponse(['success' => $success], Response::HTTP_CREATED);
+            }
+
+            // $data = array('name' => "oladadele", 'body' => "testing mail");
+
+            // Mail::send('emails.userverify', $user, function ($message) use ($user) {
+            //     $message->to($user->email, $user->name)
+            //         ->subject('Artisans Web Testing Mail');
+            //     $message->from('wilhoitdavid393@gmail.com', 'Artisans Web');
+            // });
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage(), 422);
+        }
+
+
+        $success['message'] = "Please check your inbox.";
+        return $this->validResponse(['success' => $success], Response::HTTP_CREATED);
     }
-    /**
-     * Login user and create token
-     *
-     * @param  [string] email
-     * @param  [string] password
-     * @param  [boolean] remember_me
-     * @return [string] access_token
-     * @return [string] token_type
-     * @return [string] expires_at
-     */
+
+    public function verifyUser($token)
+    {
+        $error = [];
+        $status = "";
+        $verifyUser = VerifyUsers::where('token', $token)->first();
+        if (isset($verifyUser)) {
+            $user = $verifyUser->user;
+            if (!$user->isVerified) {
+                $verifyUser->user->isVerified = 1;
+                $verifyUser->user->save();
+                $status = "Your e-mail is verified. You can now login.";
+            } else {
+                $status = "Your e-mail is already verified. You can now login.";
+            }
+        } else {
+            $error["message"] = "Sorry your email cannot be identified";
+            $error["code"] = 'Email Error';
+            return $this->errorResponse($error, 422);
+        }
+        return $this->validResponse(['success' => $status], Response::HTTP_OK);
+    }
+
     // public function login(Request $request)
     // {
-    //     $request->validate([
-    //         'email' => 'required|string|email',
-    //         'password' => 'required|string',
-    //         'remember_me' => 'boolean'
-    //     ]);
-    //     $credentials = request(['email', 'password']);
-    //     if (!Auth::attempt($credentials))
-    //         return response()->json([
-    //             'message' => 'Unauthorized'
-    //         ], 401);
-    //     $user = $request->user();
-    //     $tokenResult = $user->createToken('Personal Access Token');
-    //     $token = $tokenResult->token;
-    //     if ($request->remember_me)
-    //         $token->expires_at = Carbon::now()->addWeeks(1);
-    //     $token->save();
-    //     return response()->json([
-    //         'access_token' => $tokenResult->accessToken,
-    //         'token_type' => 'Bearer',
-    //         'expires_at' => Carbon::parse(
-    //             $tokenResult->token->expires_at
-    //         )->toDateTimeString()
-    //     ]);
+    //     if (Auth::attempt(["email" => request("email"), "password" => request("password")])) {
+    //         $user = Auth::user();
+    //         if (!$user->isVerified) { //if user account is not verified. Request verification.
+    //             $verifyToken = $user->verifyUser->token;
+    //             Mail::to($user->email)->send(new EmailVerification($user));
+    //             $error['message'] = "Your Email is not verified, we have sent a confirmation mail to your email. Please check your inbox.";
+    //             $error['code'] = "NOT_VERIFIED";
+    //             return response()->json(['error' => $error], 400);
+    //         } else {
+    //             if ($user["2fa"]) {
+    //                 $code = TwoFACodes::create(["user_id" => $user["id"], "code" => substr(uniqid(rand(), true), 16, 7)]);
+    //                 $user["code"] = $code["code"];
+    //                 Mail::to($user->email)->send(new VerifyTwoFa($user));
+    //                 $error['message'] = "Please verify Two-factor Authentication. We have sent a code to your email.";
+    //                 $error['code'] = "VERIFY_2FA";
+    //                 return response()->json(['error' => $error], 401);
+    //             }
+    //             $success['user'] = $user;
+    //             $success["user"]["token"] = $user->createToken($user->name)->accessToken;
+    //             return response()->json(['success' => $success], 200);
+    //         }
+    //     } else {
+    //         $user = User::where('email', $request->email)->first();
+    //         if (isset($user)) {
+    //             $error['message'] = "The password you have entered is incorrect.";
+    //             $error['code'] = "AUTHENTICATION_ERROR";
+    //             return response()->json(['error' => $error], 400);
+    //         }
+    //         $error['message'] = "The email you have entered is incorrect.";
+    //         $error['code'] = "AUTHENTICATION_ERROR";
+    //         return response()->json(['error' => $error], 400);
+    //     }
     // }
-
-    /**
-     * Logout user (Revoke the token)
-     *
-     * @return [string] message
-     */
-    public function logout(Request $request)
-    {
-        $request->user()->token()->revoke();
-        return response()->json([
-            'message' => 'Successfully logged out'
-        ]);
-    }
-
-    /**
-     * Get the authenticated User
-     *
-     * @return [json] user object
-     */
-    public function user(Request $request)
-    {
-        return response()->json($request->user());
-    }
 }
