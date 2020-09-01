@@ -33,7 +33,7 @@ Route::group([
     });
     Route::post('login', 'AuthController@login');
     Route::post('register', 'AuthController@register');
-    Route::get('auth/user/verify/{token}', 'AuthController@verifyUser');
+    Route::get('user/verify/{token}', 'AuthController@verifyUser');
 
     Route::group([
         'middleware' => 'auth:api'
