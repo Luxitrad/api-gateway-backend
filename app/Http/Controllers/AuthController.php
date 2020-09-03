@@ -9,6 +9,7 @@ use App\Traits\CustomResponse;
 use App\Http\Controllers\Controller;
 use App\Mail\EmailVerification;
 use App\Mail\VerifyTwoFa;
+use App\Notifications\HelloUser;
 use Laravel\Passport\HasApiTokens;
 
 use Exception;
@@ -58,36 +59,21 @@ class AuthController extends Controller
         $userDetails['password'] = Hash::make($userDetails['password']);
         try {
             $user = User::create($userDetails);
+
             $verifyUser = VerifyUsers::create([
                 'user_id' => $user->id,
                 'token' => Str::random(40)
             ]);
-            // dd($user);
-            // if (Mail::to($user->email)->send(new EmailVerification($user))) {
-            //     $success['message'] = "We have sent a confirmation mail to your email. Please check your inbox.";
-            //     return $this->validResponse(['success' => $success], Response::HTTP_CREATED);
-            // } else {
-            //     $error["message"] = "Cant Send Email";
-            //     $error["code"] = 'Email Error';
-            //     return $this->errorMessage(["error" => $error], 400);
-            // }
         } catch (QueryException $exception) {
             return $this->errorMessage($exception, 400);
         }
 
         try {
-            if (Mail::to($user->email)->send(new EmailVerification($user))) {
-                $success['message'] = "We have sent a confirmation mail to your email. Please check your inbox.";
-                return $this->validResponse(['success' => $success], Response::HTTP_CREATED);
-            }
-
-            // $data = array('name' => "oladadele", 'body' => "testing mail");
-
-            // Mail::send('emails.userverify', $user, function ($message) use ($user) {
-            //     $message->to($user->email, $user->name)
-            //         ->subject('Artisans Web Testing Mail');
-            //     $message->from('wilhoitdavid393@gmail.com', 'Artisans Web');
-            // });
+            $user->notify(new HelloUser());
+            // if (Mail::to($user->email)->send(new EmailVerification($user))) {
+            //     $success['message'] = "We have sent a confirmation mail to your email. Please check your inbox.";
+            //     return $this->validResponse(['success' => $success], Response::HTTP_CREATED);
+            // }
         } catch (Exception $e) {
             return $this->errorResponse($e->getMessage(), 422);
         }

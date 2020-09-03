@@ -30,9 +30,9 @@ class EmailVerification extends Mailable
      */
     public function build()
     {
-        $address = 'dev@worthboard.com';
-        $subject = 'This is a demo!';
-        $name = 'Jane Doe';
+        $address = 'team@luxitrad.com';
+        $subject = 'Sigin up!';
+        $name = 'Luxitrad';
 
         return $this->view('emails.userverify')
             ->from($address, $name)

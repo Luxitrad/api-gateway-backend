@@ -15,7 +15,8 @@
         "laravel/framework": "^7.24",
         "laravel/passport": "^9.3",
         "laravel/tinker": "^2.0",
-        "s-ichikawa/laravel-sendgrid-driver": "^3.0"
+        "s-ichikawa/laravel-sendgrid-driver": "^3.0",
+        "snowfire/beautymail": "^1.1"
     },
     "require-dev": {
         "facade/ignition": "^2.0",
